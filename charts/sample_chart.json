@@ -1,0 +1,32 @@
+{
+    "meta": {
+        "title": "Sample Chart",
+        "bpm": 120
+    },
+    "notes": [
+        {
+            "time": 1000,
+            "zone": 0
+        },
+        {
+            "time": 1600,
+            "zone": 1
+        },
+        {
+            "time": 2200,
+            "zone": 2
+        },
+        {
+            "time": 2800,
+            "zone": 3
+        },
+        {
+            "time": 3400,
+            "zone": 4
+        },
+        {
+            "time": 4000,
+            "zone": 5
+        }
+    ]
+}

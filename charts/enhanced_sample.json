@@ -1,0 +1,127 @@
+{
+    "meta": {
+        "title": "Restlessness",
+        "artist": "by Sewerslvt",
+        "creator": "Kyrilla@Redevon",
+        "difficulty": 12,
+        "difficultyName": "TESTCHART",
+        "skillLevel": {
+            "speed": 11,
+            "technique": 12,
+            "reading": 10,
+            "physical": 9
+        },
+        "bpm": {
+            "init": 120,
+            "min": 120,
+            "max": 120
+        },
+        "patterns": [
+            "streams",
+            "jacks",
+            "crossovers",
+            "holds"
+        ],
+        "preview": {
+            "start": 10000,
+            "duration": 15000
+        },
+        "songFile": "songs/Sewerslvt_Restlessness/audio.ogg",
+        "backgroundFile": "songs/Sewerslvt_Restlessness/bg.jpg",
+        "version": "1.0.0",
+        "tags": [
+            "electronic",
+            "intense"
+        ]
+    },
+    "timing": {
+        "offset": 0,
+        "bpmChanges": [
+            {
+                "time": 0,
+                "bpm": 120
+            }
+        ],
+        "timeSignatures": [
+            {
+                "time": 0,
+                "numerator": 4,
+                "denominator": 4
+            }
+        ]
+    },
+    "sections": [
+        {
+            "name": "Intro",
+            "startTime": 0,
+            "endTime": 10000,
+            "color": "0x9ef0ff",
+            "pattern": "streams",
+            "intensity": 0.7,
+            "bpmMultiplier": 1.0
+        },
+        {
+            "name": "Build-up",
+            "startTime": 10000,
+            "endTime": 20000,
+            "color": "0xff9ef0",
+            "pattern": "jacks",
+            "intensity": 0.9,
+            "bpmMultiplier": 1.5,
+            "effects": {
+                "flash": true,
+                "shake": 0.3,
+                "zoom": 1.1
+            }
+        }
+    ],
+    "effects": {
+        "global": {
+            "backgroundDim": 0.7,
+            "hitEffectIntensity": 1.0,
+            "particleCount": "high"
+        },
+        "sections": [
+            {
+                "startTime": 5000,
+                "endTime": 7000,
+                "type": "slowdown",
+                "intensity": 0.5
+            },
+            {
+                "startTime": 15000,
+                "endTime": 17000,
+                "type": "glitch",
+                "intensity": 0.8
+            }
+        ]
+    },
+    "notes": [
+        {
+            "time": 1000,
+            "zone": 0,
+            "type": "regular",
+            "hold": {
+                "duration": 1000,
+                "subBeats": 4
+            }
+        },
+        {
+            "time": 1600,
+            "zone": 1,
+            "type": "chain",
+            "chainData": {
+                "length": 4,
+                "interval": 200
+            }
+        },
+        {
+            "time": 2200,
+            "zone": [
+                2,
+                3
+            ],
+            "type": "multi"
+        }
+    ]
+}
