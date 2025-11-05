@@ -2,7 +2,6 @@ import { createMainMenu } from './menu.js';
 import { SongSelect } from './songselect.js';
 import { InputHandler } from './input.js';
 import { Gameplay } from './gameplay.js';
-import { ChartEditor } from './chartEditor.js';
 
 const BUILD_VERSION = '2025.11.02';
 
@@ -38,7 +37,6 @@ const screens = {
     menu: document.createElement('div'),
     songSelect: document.createElement('div'),
     settings: document.createElement('div'),
-    editor: document.createElement('div'),
     results: document.createElement('div')
 };
 for (const k of Object.keys(screens)) {
@@ -429,7 +427,7 @@ function openSettings() {
                         const left = document.createElement('div'); left.style.fontSize = '12px'; left.style.color = 'var(--muted)';
                         left.innerHTML = `#${i + 1} &nbsp; Click: ${Math.round(clicks[i])} ms<br/>Press: ${Math.round(presses[i])} ms`;
                         const right = document.createElement('div');
-                        right.innerHTML = `<label style=\"font-size:13px;color:var(--muted)\">Delta: <strong style=\"color:#fff\">${deltas[i]}</strong></label> `;
+                        right.innerHTML = `<label style=\"font-size:13px;color:var(--muted)">Delta: <strong style=\"color:#fff\">${deltas[i]}</strong></label> `;
                         const chk = document.createElement('input'); chk.type = 'checkbox'; chk.checked = include[i]; chk.style.marginLeft = '8px';
                         chk.addEventListener('change', () => { include[i] = chk.checked; renderHistogram(); });
                         right.appendChild(chk);

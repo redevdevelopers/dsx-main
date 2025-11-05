@@ -7,12 +7,9 @@ Features included in this prototype:
 - Keyboard (WASD) and Gamepad input (ABXY) via Gamepad API
 - Main menu, song select stub, settings overlay
 - Simple scoring system and UI
-- Basic chart editor that exports JSON
 
-How to run:
-1. Open `index.html` in a modern browser (Chrome, Edge, Firefox). For local file access of charts, prefer running a local http server.
-
-On Windows PowerShell you can run a quick server from the project directory:
+# How to run:
+Open Windows PowerShell and you can run a quick server from the project directory:
 
 ```powershell
 # Python 3
@@ -24,7 +21,11 @@ npx http-server -p 8000
 
 Then open http://localhost:8000 in your browser.
 
-Notes and next steps:
+PS: Please make sure you have either Python version 3 or Node.js in order for the game to work.
+
+# Notes and next steps:
 - Add audio files in `/songs` and point `sampleSongs` in `scripts/songselect.js` to real tracks.
+
+# Features added in this version:
 - Implement timed note scheduling from chart JSON and hit detection with accurate timing windows.
 - Add latency calibration UI and remappable input UI.

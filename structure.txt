@@ -1,0 +1,142 @@
+Folder PATH listing for volume Windows
+Volume serial number is 3A60-1B0D
+C:.
+ª   chart-editor.html
+ª   dsx_documentations.md
+ª   gpt.txt
+ª   index.html
+ª   README.md
+ª   structure.txt
+ª   
++---assets
+ª   ª   logo_alpha.jng
+ª   ª   
+ª   +---bootloader
+ª   ª       boot.png
+ª   ª       
+ª   +---icon
+ª   ª       dsicon.ico
+ª   ª       dsicon.png
+ª   ª       dsicon2.ico
+ª   ª       dsicon2.png
+ª   ª       
+ª   +---misc
+ª       ª   song.mp3
+ª       ª   
+ª       +---Images
+ª       ª       back charathers.png
+ª       ª       bootbg.jpg
+ª       ª       criware_logo01.png
+ª       ª       criware_logo02.png
+ª       ª       dreamsync.png
+ª       ª       dsx.png
+ª       ª       DSXLIS.png
+ª       ª       DSXLIS2.png
+ª       ª       dsxuimain.png
+ª       ª       dsxuimain2.png
+ª       ª       dsxuimainold.png
+ª       ª       gamelogo.png
+ª       ª       gamelogo2.png
+ª       ª       gamelogonotrans.png
+ª       ª       loading background.jpg
+ª       ª       maincharather.png
+ª       ª       null.png
+ª       ª       Picture1.jpg
+ª       ª       Picture1.png
+ª       ª       poweredbyhalo.png
+ª       ª       redevstudiologo.png
+ª       ª       uimain.png
+ª       ª       unused bg.jpg
+ª       ª       
+ª       +---JudgementsSFX
+ª       ª       DSX_GAME_BAD.wav
+ª       ª       DSX_GAME_GOOD.wav
+ª       ª       DSX_GAME_GREAT.wav
+ª       ª       DSX_GAME_INCOMING.wav
+ª       ª       DSX_GAME_PERFECT.wav
+ª       ª       
+ª       +---SystemSFX
+ª       ª       ATTRACT_BGM1.wav
+ª       ª       button.wav
+ª       ª       CountDown.wav
+ª       ª       dsx-bgm.wav
+ª       ª       dsx-bgm1.wav
+ª       ª       dsx-bgmfull.mp3
+ª       ª       dsx-confirm.wav
+ª       ª       DSX_COMMUNICATION.wav
+ª       ª       DSX_NAV.wav
+ª       ª       DSX_NAVENTER.wav
+ª       ª       DSX_NAV_CLICK.wav
+ª       ª       DSX_RESULT.wav
+ª       ª       DSX_RESULT_SPECIAL.wav
+ª       ª       DSX_TITLE.wav
+ª       ª       DSX_WELCOME.wav
+ª       ª       enqueue.wav
+ª       ª       notes_judgecoming.wav
+ª       ª       SE_KALEID_DOOR_2_.wav
+ª       ª       Start.wav
+ª       ª       Start1.wav
+ª       ª       StartOld.wav
+ª       ª       toggle.wav
+ª       ª       
+ª       +---VoiceSFX
+ª               CountScore.wav
+ª               dreamsyncikoyo(old).wav
+ª               dreamsyncikoyo.mp3
+ª               Dreamsyncold.wav
+ª               FullCombo.wav
+ª               LevelDown.wav
+ª               LevelUp.wav
+ª               Lose.wav
+ª               MissionClear.wav
+ª               OPEN.wav
+ª               RANKDOWN.wav
+ª               RANKUP.wav
+ª               ResultNewRecord.wav
+ª               Unavailable.wav
+ª               
++---charts
+ª       enhanced_sample.json
+ª       sample_chart.json
+ª       
++---scripts
+ª       audioAnalyzer.js
+ª       audioManager.js
+ª       chartData.js
+ª       chartEditor.js
+ª       gameplay.js
+ª       grades.js
+ª       input.js
+ª       main.js
+ª       menu.js
+ª       scoring.js
+ª       songselect.js
+ª       soundManager.js
+ª       visualizer.js
+ª       volumeManager.js
+ª       
++---songs
+ª   ª   audio.ogg
+ª   ª   Cosmograph-Straight-into-the-lights-maimai-?????.mp4
+ª   ª   Help-me-ERINNNNNN-??????.mp4
+ª   ª   interfaceloading.mp3
+ª   ª   maimai-?????-Energizing-Flame-Artifact-vs-Dualcast-1020-?-??.mp4
+ª   ª   Oshama-Scramble-t-pazolite.mp4
+ª   ª   README.md
+ª   ª   ssvid.net---Grievous-Lady_1080p.mp4
+ª   ª   ssvid.net---tn-shi-Synthesis_1080pFHR.mp4
+ª   ª   ssvid.net--maimai-PANDORA-PARADOXXX??_1080p.mp4
+ª   ª   ssvid.net--Xaleid-scopiX-xi-maimai-?????_1080p.mp4
+ª   ª   ssvid.net--??MV-????????????????-??????_1080p.mp4
+ª   ª   Tenebre Rosso Sangue  Cover  ft. ????Kasane Teto [Sandwich Lyrics].mp4
+ª   ª   ??-????????????-?????-feat-??????-???COOL-CREATE.mp4
+ª   ª   ??-????-??-???-??????-???.mp4
+ª   ª   
+ª   +---Sewerslvt_Restlessness
+ª           bg.jpg
+ª           bg.png
+ª           Internet_Yamero.mp4
+ª           
++---styles
+        styles.css
+        
