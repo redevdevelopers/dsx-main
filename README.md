@@ -1,3 +1,4 @@
+![alt text](assets/misc/Images/gamelogo2.png)
 # DreamSyncX: Eternal Force (Prototype)
 
 This repository contains a browser-based rhythm game prototype by Redevon Community
