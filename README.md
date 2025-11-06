@@ -1,10 +1,10 @@
 # DreamSyncX: Eternal Force (Prototype)
 
-This repository contains a browser-based rhythm game prototype inspired by osu! and Cytus.
+This repository contains a browser-based rhythm game prototype by Redevon Community
 
 Features included in this prototype:
 - Pixi.js rendering of a hexagon playfield
-- Keyboard (WASD) and Gamepad input (ABXY) via Gamepad API
+- Keyboard (TYU,GHJ) TYU for top hex's zone and GHJ for bottom hex's zone.
 - Main menu, song select stub, settings overlay
 - Simple scoring system and UI
 
