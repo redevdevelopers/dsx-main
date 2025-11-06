@@ -27,6 +27,16 @@ PS: Please make sure you have either Python version 3 or Node.js in order for th
 # Notes and next steps:
 - Add audio files in `/songs` and point `sampleSongs` in `scripts/songselect.js` to real tracks.
 
-# Features added in this version:
+# Version History changes:
+V1.10-A
 - Implement timed note scheduling from chart JSON and hit detection with accurate timing windows.
 - Add latency calibration UI and remappable input UI.
+
+V1.12-D
+- Temporaily unlinked gameplay field custom hexagon skin due to some weird code issues. Will be added back soon though.
+- Gameplay Field UI minor improvments (still WIP will be polished in later update)
+- 2 new playable charts (not the best but will be polished in later update)
+- Fixes with bug and improved code quality.
+- GUI Fixes and improvements.
+- Added custom cursor.
+- More bugs!
