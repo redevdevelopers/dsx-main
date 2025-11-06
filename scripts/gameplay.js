@@ -3,13 +3,17 @@ import { ScoreSystem } from './scoring.js';
 const { PIXI } = window;
 
 export class Gameplay {
+    get app() {
+        return this._app;
+    }
+
     constructor({ parent, input, settings }) {
         this.parent = parent || document.body;
         this.input = input;
         this.settings = settings || {};
-        this.app = new PIXI.Application({ backgroundAlpha: 0, resizeTo: this.parent });
-        this.parent.appendChild(this.app.view);
-        this.stage = this.app.stage;
+        this._app = new PIXI.Application({ backgroundAlpha: 0, resizeTo: this.parent });
+        this.parent.appendChild(this._app.view);
+        this.stage = this._app.stage;
 
         // background parallax layers
         this.bgLayer = new PIXI.Container();
@@ -54,6 +58,8 @@ export class Gameplay {
         });
 
         this.lastLargeComboShown = 0;
+        this.hexAnimations = [];
+        this.hexColorAnimations = []; // New array for color animations
     }
 
     async loadSong(song, chartPath) {
@@ -101,6 +107,11 @@ export class Gameplay {
     }
 
     start() {
+        // HACK: Force 6-key layout to override any stored user settings
+        if (this.input && this.input.keyMap) {
+            Object.assign(this.input.keyMap, { 'j': 2, 'y': 0, 't': 5, 'u': 1, 'h': 3, 'g': 4 });
+        }
+
         this.running = true;
         this.app.ticker.add(this._update, this);
         this.scheduledIndex = 0;
@@ -135,10 +146,12 @@ export class Gameplay {
             const x = center.x + Math.cos(angle) * radius;
             const y = center.y + Math.sin(angle) * radius;
             const g = new PIXI.Graphics();
-            g.beginFill(0x0a1220, 0.6);
+            const hexBaseColor = 0x0a1220; // Define the base color
+            g.beginFill(hexBaseColor, 0.6);
             g.lineStyle(2, 0x1f3344, 0.6);
             this._drawHex(g, x, y, 60);
             g.endFill();
+            g.originalFillColor = hexBaseColor; // Store original color
             this.hexGroup.addChild(g);
             this.zonePositions.push({ x, y });
         }
@@ -309,19 +322,22 @@ export class Gameplay {
             return;
         }
         const g = new PIXI.Graphics();
-        g.beginFill(0x6ee7b7);
-        g.drawCircle(0, 0, 12);
+        g.beginFill(0x000000);
+        this._drawHex(g, 0, 0, 10); // Draw a solid hexagon for the note
         g.endFill();
-        // start position further out
-        const spawnY = pos.y - 180;
-        g.x = pos.x; g.y = spawnY;
+        // Note appears directly at the hit position
+        g.x = pos.x; g.y = pos.y; // Changed from spawnY
         g.alpha = 0.95;
+
         // create approach ring (shrink toward hit)
         const ring = new PIXI.Graphics();
         ring.lineStyle(3, 0x6ee7b7, 0.85);
-        ring.drawCircle(0, 0, 36);
-        ring.x = pos.x; ring.y = spawnY;
+        this._drawHex(ring, 0, 0, 100); // Draw a hexagon outline for the approach ring
+        ring.x = pos.x; ring.y = pos.y; // Changed from spawnY
         ring.alpha = 0.9;
+        // Initial scale for the approach ring (larger than 1)
+        ring.scale.set(60.0); // Start larger, will shrink in _update
+
         this.stage.addChild(ring);
         this.stage.addChild(g);
         const targetTime = note.time; // ms
@@ -377,19 +393,21 @@ export class Gameplay {
                 continue;
             }
             // clamp
-            const t = Math.max(0, Math.min(1, progress));
-            const startY = pos.y - 180;
-            a.sprite.y = startY + (pos.y - startY) * t;
-            a.sprite.scale.set(1 + 0.3 * t);
-            a.sprite.alpha = 0.95 * (1 - 0.1 * t);
-            // animate approach ring position/scale/alpha
+            const t = Math.max(0, Math.min(1, progress)); // t goes from 0 to 1 as note approaches hit time
+
+            // Note (solid hexagon)
+            a.sprite.x = pos.x; // Ensure it stays at the center
+            a.sprite.y = pos.y; // Ensure it stays at the center
+            a.sprite.alpha = 2.0 * (1 - t * 0.5); // Subtle fade as it approaches
+
+            // Approach Ring (hexagon outline)
             if (a.ring) {
-                a.ring.x = pos.x;
-                // ring moves with sprite and shrinks as it approaches
-                a.ring.y = startY + (pos.y - startY) * t;
-                const ringScale = Math.max(0.2, 1 - t);
-                a.ring.scale.set(ringScale);
-                a.ring.alpha = 0.9 * (1 - t);
+                a.ring.x = pos.x; // Ensure it stays at the center
+                a.ring.y = pos.y; // Ensure it stays at the center
+                // Scale from 2.0 down to 0.2 as it approaches
+                const ringScale = 2.0 - (1.8 * t); // From 2.0 down to 0.2
+                a.ring.scale.set(Math.max(0.2, ringScale)); // Ensure it doesn't shrink too small
+                a.ring.alpha = 0.9 * (1 - t); // Fade out as it approaches
             }
         }
 
@@ -440,6 +458,26 @@ export class Gameplay {
             this.starLayer.y = sy + Math.cos(time * 0.17) * 4;
         }
 
+        // Animate hexagons
+        for (let i = this.hexAnimations.length - 1; i >= 0; i--) {
+            const anim = this.hexAnimations[i];
+            const elapsed = performance.now() - anim.startTime;
+            const t = Math.min(1, elapsed / anim.duration);
+
+            if (t < 0.5) {
+                const scale = anim.originalScale - (anim.originalScale - anim.targetScale) * (t * 2);
+                anim.hex.scale.set(scale);
+            } else {
+                const scale = anim.targetScale + (anim.originalScale - anim.targetScale) * ((t - 0.5) * 2);
+                anim.hex.scale.set(scale);
+            }
+
+            if (t >= 1) {
+                anim.hex.scale.set(anim.originalScale);
+                this.hexAnimations.splice(i, 1);
+            }
+        }
+
         // input handling: get pressed zones from input handler (remappable)
         const pressedZones = (this.input && this.input.getPressedZones) ? this.input.getPressedZones() : [];
         for (const z of pressedZones) this._tryHit(z);
@@ -467,14 +505,31 @@ export class Gameplay {
             const diff = Math.abs(a.targetTime - now);
             if (diff < bestDiff) { bestDiff = diff; bestIndex = i; }
         }
+
+        // Animate the hexagon for the pressed zone
+        const hex = this.hexGroup.children[zone + 7];
+        if (hex) {
+            // Remove any existing animation for this hex
+            this.hexAnimations = this.hexAnimations.filter(a => a.hex !== hex);
+
+            const originalScale = hex.scale.x || 1;
+            this.hexAnimations.push({
+                hex: hex,
+                startTime: performance.now(),
+                duration: 120, // shorter duration
+                originalScale: originalScale,
+                targetScale: originalScale * 60
+            });
+        }
+
         if (bestIndex === -1) return; // no note
         // grading
         const ms = bestDiff;
         let grade = null; let points = 0;
-        if (ms <= this.hitWindows.perfect) { grade = 'perfect'; points = 300; }
-        else if (ms <= this.hitWindows.great) { grade = 'great'; points = 150; }
-        else if (ms <= this.hitWindows.good) { grade = 'good'; points = 50; }
-        else { grade = 'miss'; }
+        if (ms <= this.hitWindows.perfect) { grade = 'MARVELOUS'; points = 300; }
+        else if (ms <= this.hitWindows.great) { grade = 'AWESOME'; points = 150; }
+        else if (ms <= this.hitWindows.good) { grade = 'OK'; points = 50; }
+        else { grade = 'MISS'; }
 
         const a = this.activeNotes[bestIndex];
         // remove note and show feedback
@@ -482,23 +537,23 @@ export class Gameplay {
         if (a.ring) a.ring.destroy();
         this.activeNotes.splice(bestIndex, 1);
 
-        if (grade !== 'miss') {
+        if (grade !== 'MISS') {
             this.score.addHit(points);
-            this.score.registerGrade(grade);
+            this.score.registerGrade(grade.toLowerCase());
             // register last-hit time for glow
             this.zoneLastHit[a.zone] = performance.now();
             this._showHitFeedback(grade, a.zone);
         } else {
             this.score.miss();
             this.zoneLastHit[a.zone] = performance.now();
-            this._showHitFeedback('miss', a.zone);
+            this._showHitFeedback('MISS', a.zone);
         }
     }
 
     _onMiss(a) {
         this.score.miss();
         this.score.registerGrade('miss');
-        this._showHitFeedback('miss', a.zone);
+        this._showHitFeedback('MISS', a.zone);
     }
 
     async _showHitFeedback(grade, zone) {
@@ -507,38 +562,58 @@ export class Gameplay {
         // Play judgment sound
         try {
             const { soundManager } = await import('./soundManager.js');
-            // Play appropriate sound for the grade
-            await soundManager.play(grade, { volume: grade === 'perfect' ? 0.6 : 0.5 });
+            const soundToPlay = grade === 'MARVELOUS' ? 'perfect' : grade === 'AWESOME' ? 'great' : grade === 'OK' ? 'good' : 'miss';
+            await soundManager.play(soundToPlay, { volume: 0.5 });
         } catch (e) { /* ignore if sound fails */ }
 
         // grade text with animated pop
-        const color = grade === 'perfect' ? 0xfff1a8 : grade === 'great' ? 0xa8ffd6 : grade === 'good' ? 0xa8d7ff : 0xff9ea8;
-        const txt = new PIXI.Text(grade.toUpperCase(), { fill: color, fontSize: 20, fontWeight: '700' });
+        const gradeColors = {
+            'MARVELOUS': 0xfff1a8,
+            'AWESOME': 0xa8ffd6,
+            'OK': 0xa8d7ff,
+            'MISS': 0xff9ea8
+        };
+        const color = gradeColors[grade] || 0xffffff;
+
+        const txt = new PIXI.Text(grade, {
+            fill: color,
+            fontSize: 36, // Increased font size
+            fontWeight: '900',
+            stroke: '#000000',
+            strokeThickness: 4,
+            dropShadow: true,
+            dropShadowColor: '#000000',
+            dropShadowBlur: 7,
+        });
         txt.anchor.set(0.5);
-        txt.x = pos.x; txt.y = pos.y - 30;
-        txt.scale.set(0.6);
+        txt.x = pos.x; txt.y = pos.y; // Centered on the hex
+        txt.scale.set(0.5);
         this.uiLayer.addChild(txt);
 
         // spark circle
         const spark = new PIXI.Graphics();
         spark.beginFill(color);
-        spark.drawCircle(0, 0, 8);
+        spark.drawCircle(0, 0, 12); // Larger spark
         spark.endFill();
         spark.x = pos.x; spark.y = pos.y;
         this.uiLayer.addChild(spark);
 
         const start = performance.now();
-        const duration = 420;
+        const duration = 500; // Slightly longer animation
         const animate = () => {
             const elapsed = performance.now() - start;
             const t = Math.min(1, elapsed / duration);
-            // grade text pop
-            const s = 1 + 0.6 * (1 - (t - 0.2) * (t - 0.2));
-            txt.scale.set(0.6 + 0.9 * (1 - t));
-            txt.alpha = 1 - t * 1.1;
-            // spark expand
-            spark.scale.set(1 + t * 1.8);
+
+            // grade text pop and fade
+            const s = 1 + Math.sin(t * Math.PI) * 0.5; // Pop effect
+            txt.scale.set(s);
+            txt.alpha = 1 - t;
+            txt.y = pos.y - t * 40; // Move up
+
+            // spark expand and fade
+            spark.scale.set(1 + t * 2.5);
             spark.alpha = 1 - t;
+
             if (t >= 1) {
                 txt.destroy();
                 spark.destroy();
@@ -548,26 +623,26 @@ export class Gameplay {
         this.app.ticker.add(animate);
 
         // particle burst
-        const particleCount = grade === 'perfect' ? 12 : grade === 'great' ? 9 : grade === 'good' ? 6 : 4;
+        const particleCount = grade === 'MARVELOUS' ? 15 : grade === 'AWESOME' ? 10 : grade === 'OK' ? 5 : 2;
         for (let i = 0; i < particleCount; i++) {
             const sp = new PIXI.Graphics();
-            // rounded rect particle
             sp.beginFill(color, 1);
-            sp.drawRoundedRect(-3, -2, 6, 4, 2);
+            sp.drawRoundedRect(-4, -2, 8, 4, 2);
             sp.endFill();
             sp.x = pos.x; sp.y = pos.y;
             this.uiLayer.addChild(sp);
-            // bloom copy into glow layer (soft larger)
+
             const glow = new PIXI.Graphics();
-            glow.beginFill(color, 0.25);
-            glow.drawCircle(0, 0, 8);
+            glow.beginFill(color, 0.3);
+            glow.drawCircle(0, 0, 10);
             glow.endFill();
             glow.x = pos.x; glow.y = pos.y; this.glowLayer.addChild(glow);
+
             const angle = Math.random() * Math.PI * 2;
-            const speed = 2 + Math.random() * 5;
+            const speed = 3 + Math.random() * 6;
             const vx = Math.cos(angle) * speed;
-            const vy = Math.sin(angle) * speed - (Math.random() * 0.6);
-            this.activeParticles.push({ sprite: sp, glow, x: pos.x, y: pos.y, vx, vy, life: 700, maxLife: 700 });
+            const vy = Math.sin(angle) * speed;
+            this.activeParticles.push({ sprite: sp, glow, x: pos.x, y: pos.y, vx, vy, life: 800, maxLife: 800 });
         }
 
         // combo pop
@@ -661,7 +736,7 @@ export class Gameplay {
                 fontSize: 120,
                 fontWeight: '900',
                 dropShadow: true,
-                dropShadowColor: 0x000000,
+                dropShadowColor: '#000000',
                 dropShadowDistance: 4,
                 dropShadowBlur: 4
             });
@@ -695,9 +770,9 @@ export class Gameplay {
                 { label: 'Score', value: formatNumber(finalScore), bonus: gradeData.reward > 0 ? `+${formatNumber(gradeData.reward)}` : '' },
                 { label: 'Max Combo', value: `${this.score.maxCombo}x` },
                 { label: 'Accuracy', value: `${accuracy}%` },
-                { label: 'Perfect', value: this.score.grades.perfect || 0 },
-                { label: 'Great', value: this.score.grades.great || 0 },
-                { label: 'Good', value: this.score.grades.good || 0 },
+                { label: 'Marvelous', value: this.score.grades.marvelous || 0 },
+                { label: 'Awesome', value: this.score.grades.awesome || 0 },
+                { label: 'OK', value: this.score.grades.ok || 0 },
                 { label: 'Miss', value: this.score.grades.miss || 0 }
             ];
 
