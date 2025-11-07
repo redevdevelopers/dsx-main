@@ -41,7 +41,13 @@ export class SoundManager {
                 perfect: 'assets/misc/JudgementsSFX/DSX_GAME_PERFECT.wav',
                 great: 'assets/misc/JudgementsSFX/DSX_GAME_GREAT.wav',
                 good: 'assets/misc/JudgementsSFX/DSX_GAME_GOOD.wav',
-                miss: 'assets/misc/JudgementsSFX/DSX_GAME_BAD.wav'
+                miss: 'assets/misc/JudgementsSFX/DSX_GAME_BAD.wav',
+                'nav': 'assets/misc/SystemSFX/DSX_NAV.wav',
+                'dsx-nav-enter': 'assets/misc/SystemSFX/DSX-ENTER-BEATMAP.wav',
+                'countdown3': 'assets/misc/SystemSFX/countdown3.wav',
+                'countdown2': 'assets/misc/SystemSFX/countdown2.wav',
+                'countdown1': 'assets/misc/SystemSFX/countdown1.wav',
+                'start_game': 'assets/misc/SystemSFX/StartMap.wav'
             };
 
             // Load all sounds in parallel
@@ -92,7 +98,8 @@ export class SoundManager {
             // route sound effects through effectsGain (if available) so global changes apply
             if (this.effectsGain) {
                 gain.connect(this.effectsGain);
-            } else {
+            }
+            else {
                 gain.connect(this.context.destination);
             }
 

@@ -11,7 +11,10 @@ export class Gameplay {
         this.parent = parent || document.body;
         this.input = input;
         this.settings = settings || {};
-        this._app = new PIXI.Application({ backgroundAlpha: 0, resizeTo: this.parent });
+        this.isAutoplay = settings.isAutoplay || false; // Store autoplay setting
+        // Apply renderer options from settings (developer mode controlled at call site)
+        const rendererOpts = Object.assign({ backgroundAlpha: 0, resizeTo: this.parent }, (this.settings && this.settings.renderer) ? this.settings.renderer : {});
+        this._app = new PIXI.Application(rendererOpts);
         this.parent.appendChild(this._app.view);
         this.stage = this._app.stage;
 
@@ -33,7 +36,23 @@ export class Gameplay {
         this.uiLayer = new PIXI.Container();
         this.stage.addChild(this.uiLayer);
 
+        if (this.isAutoplay) {
+            this.autoplayText = new PIXI.Text('Autoplay ON (Hold ESC to exit)', {
+                fill: 0xffffff,
+                fontSize: 24,
+                fontWeight: 'bold',
+                align: 'center',
+                stroke: '#000000',
+                strokeThickness: 4
+            });
+            this.autoplayText.anchor.set(0.5);
+            this.autoplayText.x = this.app.renderer.width / 2;
+            this.autoplayText.y = 50; // Top of the screen
+            this.uiLayer.addChild(this.autoplayText);
+        }
+
         this._createHexGrid();
+        this._createHud();
 
         // particle / combo arrays
         this.activeParticles = [];
@@ -46,7 +65,7 @@ export class Gameplay {
         this.startTime = 0; // ms
         this.scheduledIndex = 0;
         this.activeNotes = [];
-        this.approachTime = 1500; // ms the time a note takes to travel from spawn to hit
+        this.approachTime = this.settings.noteApproachTime || 1500; // ms the time a note takes to travel from spawn to hit
         this.latencyOffset = (this.settings.latency || 0); // ms
         this.hitWindows = { perfect: 50, great: 100, good: 200 };
 
@@ -106,7 +125,54 @@ export class Gameplay {
         }
     }
 
-    start() {
+    async start() {
+        const { soundManager } = await import('./soundManager.js');
+
+        // Show countdown
+        const countdownText = new PIXI.Text('1', {
+            fill: 0xffffff,
+            fontSize: 128,
+            fontWeight: 'bold',
+            align: 'center',
+            stroke: '#000000',
+            strokeThickness: 8
+        });
+        countdownText.anchor.set(0.5);
+        countdownText.x = this.app.renderer.width / 2;
+        countdownText.y = this.app.renderer.height / 2;
+        this.uiLayer.addChild(countdownText);
+
+        let currentCount = 1;
+
+        const countdown = () => {
+            if (currentCount <= 3) {
+                countdownText.text = currentCount.toString();
+                try {
+                    soundManager.play('countdown' + currentCount);
+                } catch (e) {
+                    console.warn('Failed to play countdown sound for ' + currentCount, e);
+                }
+                currentCount++;
+                setTimeout(countdown, 1000);
+            } else {
+                countdownText.text = 'START!';
+                try {
+                    soundManager.play('start_game');
+                } catch (e) {
+                    console.warn('Failed to play start_game sound', e);
+                }
+                setTimeout(() => {
+                    this.uiLayer.removeChild(countdownText);
+                    this._beginGameplay();
+                }, 1000);
+            }
+        };
+
+        // Start the countdown
+        countdown();
+    }
+
+    _beginGameplay() {
         // HACK: Force 6-key layout to override any stored user settings
         if (this.input && this.input.keyMap) {
             Object.assign(this.input.keyMap, { 'j': 2, 'y': 0, 't': 5, 'u': 1, 'h': 3, 'g': 4 });
@@ -119,15 +185,31 @@ export class Gameplay {
         this.startTime = performance.now();
         // if audio available, play and use its clock
         if (this.audioManager) {
+            if (this.audioManager.audioContext.state === 'suspended') {
+                this.audioManager.audioContext.resume();
+            }
             this.audioManager.play();
         }
         // read latency from settings in case it changed
         this.latencyOffset = (this.settings.latency || 0);
+
+        if (this.isAutoplay) {
+            this._handleAutoplayEscape = (e) => {
+                if (e.code === 'Escape') {
+                    e.preventDefault();
+                    location.reload(); // Reload the window
+                }
+            };
+            window.addEventListener('keydown', this._handleAutoplayEscape);
+        }
     }
 
     stop() {
         this.running = false;
         this.app.ticker.remove(this._update, this);
+        if (this.isAutoplay && this._handleAutoplayEscape) {
+            window.removeEventListener('keydown', this._handleAutoplayEscape);
+        }
     }
 
     _createHexGrid() {
@@ -141,6 +223,7 @@ export class Gameplay {
         hexBackground.drawCircle(center.x, center.y, radius + 70);
         hexBackground.endFill();
         this.hexGroup.addChild(hexBackground);
+        this.zoneRadius = 60; // base hex radius used in grid
         for (let i = 0; i < 6; i++) {
             const angle = (i / 6) * Math.PI * 2 - Math.PI / 2;
             const x = center.x + Math.cos(angle) * radius;
@@ -149,7 +232,7 @@ export class Gameplay {
             const hexBaseColor = 0x0a1220; // Define the base color
             g.beginFill(hexBaseColor, 0.6);
             g.lineStyle(2, 0x1f3344, 0.6);
-            this._drawHex(g, x, y, 60);
+            this._drawHex(g, x, y, this.zoneRadius);
             g.endFill();
             g.originalFillColor = hexBaseColor; // Store original color
             this.hexGroup.addChild(g);
@@ -321,28 +404,48 @@ export class Gameplay {
             console.warn('Note has invalid zone index:', zoneIndex, note);
             return;
         }
-        const g = new PIXI.Graphics();
-        g.beginFill(0x000000);
-        this._drawHex(g, 0, 0, 10); // Draw a solid hexagon for the note
-        g.endFill();
-        // Note appears directly at the hit position
-        g.x = pos.x; g.y = pos.y; // Changed from spawnY
-        g.alpha = 0.95;
+        // Note body (inner hex) for osu-like hit circle feel
+        const body = new PIXI.Graphics();
+        body.beginFill(0xFFFFFF, 1.0);
+        this._drawHex(body, 0, 0, this.zoneRadius);
+        body.endFill();
+        body.x = pos.x; body.y = pos.y;
+        body.alpha = 0.5; // fade in as approach progresses
 
-        // create approach ring (shrink toward hit)
+        // Approach visuals: crisp ring + soft glow + timing arc
         const ring = new PIXI.Graphics();
-        ring.lineStyle(3, 0x6ee7b7, 0.85);
-        this._drawHex(ring, 0, 0, 100); // Draw a hexagon outline for the approach ring
-        ring.x = pos.x; ring.y = pos.y; // Changed from spawnY
+        ring.lineStyle(4, 0x6ee7b7, 0.60);
+        // Match approach hex radius to grid hex radius
+        this._drawHex(ring, 0, 0, this.zoneRadius);
+        ring.x = pos.x; ring.y = pos.y;
         ring.alpha = 0.9;
-        // Initial scale for the approach ring (larger than 1)
-        ring.scale.set(60.0); // Start larger, will shrink in _update
+        ring.scale.set(0.1); // larger start for readability
 
-        this.stage.addChild(ring);
-        this.stage.addChild(g);
+        const ringGlow = new PIXI.Graphics();
+        ringGlow.beginFill(0x6ee7b7, 0.12);
+        ringGlow.drawCircle(0, 0, this.zoneRadius * 1.6);
+        ringGlow.endFill();
+        ringGlow.x = pos.x; ringGlow.y = pos.y;
+        ringGlow.scale.set(1.0);
+
+        // Timing arc (wipe) using a mask container
+        const arcContainer = new PIXI.Container();
+        const arc = new PIXI.Graphics();
+        arc.lineStyle(6, 0xff6fd8, 0.95);
+        arc.moveTo(0, 0);
+        arc.drawCircle(0, 0, this.zoneRadius * 1.1);
+        arc.x = pos.x; arc.y = pos.y;
+        arc.alpha = 0.0; // becomes visible during last half
+        arcContainer.addChild(arc);
+
+        this.glowLayer.addChild(ringGlow);
+        this.hexGroup.addChild(ring);
+        this.hexGroup.addChild(body);
+        this.hexGroup.addChild(arcContainer);
+
         const targetTime = note.time; // ms
         const spawnedAt = this._now();
-        this.activeNotes.push({ note, sprite: g, ring, spawnedAt, targetTime, zone: zoneIndex });
+        this.activeNotes.push({ note, sprite: body, ring, ringGlow, arc, spawnedAt, targetTime, zone: zoneIndex });
     }
 
     _now() {
@@ -376,6 +479,25 @@ export class Gameplay {
             const a = this.activeNotes[i];
             const progress = (now - (a.targetTime - this.approachTime)) / this.approachTime; // 0..1 when arriving
             const pos = this.zonePositions[a.zone];
+
+            // Autoplay logic: hit notes exactly at their targetTime
+            if (this.isAutoplay && now >= a.targetTime && !a.hitByAutoplay) {
+                // Simulate a perfect hit
+                this.score.addHit(300); // Perfect score
+                this.score.registerGrade('marvelous');
+                this.zoneLastHit[a.zone] = performance.now();
+                this._showHitFeedback('MARVELOUS', a.zone);
+
+                // Remove the note
+                a.sprite.destroy();
+                if (a.ring) a.ring.destroy();
+                if (a.ringGlow) a.ringGlow.destroy();
+                if (a.arc) a.arc.destroy();
+                this.activeNotes.splice(i, 1);
+                a.hitByAutoplay = true; // Mark as hit to prevent double hitting
+                continue; // Continue to next note
+            }
+
             if (!pos) {
                 // invalid zone for this active note - remove gracefully
                 console.warn('Active note has invalid zone, removing:', a);
@@ -389,25 +511,48 @@ export class Gameplay {
                 this._onMiss(a);
                 if (a.sprite) a.sprite.destroy();
                 if (a.ring) a.ring.destroy();
+                if (a.ringGlow) a.ringGlow.destroy();
+                if (a.arc) a.arc.destroy();
                 this.activeNotes.splice(i, 1);
                 continue;
-            }
-            // clamp
+            }            // clamp
             const t = Math.max(0, Math.min(1, progress)); // t goes from 0 to 1 as note approaches hit time
 
-            // Note (solid hexagon)
-            a.sprite.x = pos.x; // Ensure it stays at the center
-            a.sprite.y = pos.y; // Ensure it stays at the center
-            a.sprite.alpha = 2.0 * (1 - t * 0.5); // Subtle fade as it approaches
+            // Note body fade-in near hit
+            a.sprite.x = pos.x;
+            a.sprite.y = pos.y;
+            const bodyAlpha = Math.min(1, t * 2);
+            a.sprite.alpha = Math.max(0, Math.min(1, bodyAlpha));
 
-            // Approach Ring (hexagon outline)
+            // Approach ring (outer)
             if (a.ring) {
-                a.ring.x = pos.x; // Ensure it stays at the center
-                a.ring.y = pos.y; // Ensure it stays at the center
-                // Scale from 2.0 down to 0.2 as it approaches
-                const ringScale = 2.0 - (1.8 * t); // From 2.0 down to 0.2
-                a.ring.scale.set(Math.max(0.2, ringScale)); // Ensure it doesn't shrink too small
-                a.ring.alpha = 0.9 * (1 - t); // Fade out as it approaches
+                a.ring.x = pos.x; a.ring.y = pos.y;
+                const ringScale = 2.2 - (1.2 * t); // 2.2 -> 1.0
+                a.ring.scale.set(Math.max(0.2, Math.min(2.2, ringScale)));
+                a.ring.alpha = Math.max(0.1, 0.95 * (1 - t));
+            }
+            // Soft glow under ring
+            if (a.ringGlow) {
+                a.ringGlow.x = pos.x; a.ringGlow.y = pos.y;
+                a.ringGlow.alpha = Math.max(0, 0.25 * (1 - t));
+                a.ringGlow.scale.set(1.0 + 0.15 * (1 - t));
+            }
+            // Timing arc appears in last half and shortens
+            if (a.arc) {
+                a.arc.x = pos.x; a.arc.y = pos.y;
+                const vis = Math.max(0, (t - 0.5) * 2);
+                a.arc.alpha = vis * 0.9;
+                // redraw arc as partial circle based on remaining time
+                const frac = Math.max(0.02, 1 - t);
+                a.arc.clear();
+                a.arc.lineStyle(6, 0xff6fd8, 0.95);
+                // draw an arc segment (approximate with polygon)
+                const r = this.zoneRadius * 1.1; const steps = 64; const endAng = Math.PI * 2 * frac;
+                a.arc.moveTo(r, 0);
+                for (let s = 0; s <= steps * frac; s++) {
+                    const ang = (s / steps) * endAng;
+                    a.arc.lineTo(Math.cos(ang) * r, Math.sin(ang) * r);
+                }
             }
         }
 
@@ -458,14 +603,14 @@ export class Gameplay {
             this.starLayer.y = sy + Math.cos(time * 0.17) * 4;
         }
 
-        // Animate hexagons
+        // Animate hexagons (press bounce)
         for (let i = this.hexAnimations.length - 1; i >= 0; i--) {
             const anim = this.hexAnimations[i];
             const elapsed = performance.now() - anim.startTime;
             const t = Math.min(1, elapsed / anim.duration);
 
             if (t < 0.5) {
-                const scale = anim.originalScale - (anim.originalScale - anim.targetScale) * (t * 2);
+                const scale = anim.originalScale + (anim.targetScale - anim.originalScale) * (t * 2);
                 anim.hex.scale.set(scale);
             } else {
                 const scale = anim.targetScale + (anim.originalScale - anim.targetScale) * ((t - 0.5) * 2);
@@ -480,10 +625,20 @@ export class Gameplay {
 
         // input handling: get pressed zones from input handler (remappable)
         const pressedZones = (this.input && this.input.getPressedZones) ? this.input.getPressedZones() : [];
-        for (const z of pressedZones) this._tryHit(z);
+        for (const z of pressedZones) {
+            // grid hex bounce (visual) on press
+            const hex = this._getZoneHex(z);
+            if (hex) {
+                this.hexAnimations = this.hexAnimations.filter(a => a.hex !== hex);
+                const originalScale = hex.scale.x || 1;
+                this.hexAnimations.push({ hex, startTime: performance.now(), duration: 160, originalScale, targetScale: originalScale * 1.1 });
+            }
+            this._tryHit(z);
+        }
 
-        // update score UI
+        // update score UI and HUD
         this.scoreText.text = `Score: ${this.score.score}`;
+        this._updateHud(now);
 
         // end condition: when all notes scheduled and no active notes and audio finished
         const allScheduled = this.chart && this.scheduledIndex >= (this.chart.notes ? this.chart.notes.length : 0);
@@ -507,7 +662,7 @@ export class Gameplay {
         }
 
         // Animate the hexagon for the pressed zone
-        const hex = this.hexGroup.children[zone + 7];
+        const hex = this._getZoneHex(zone);
         if (hex) {
             // Remove any existing animation for this hex
             this.hexAnimations = this.hexAnimations.filter(a => a.hex !== hex);
@@ -516,15 +671,18 @@ export class Gameplay {
             this.hexAnimations.push({
                 hex: hex,
                 startTime: performance.now(),
-                duration: 120, // shorter duration
+                duration: 120,
                 originalScale: originalScale,
-                targetScale: originalScale * 60
+                targetScale: originalScale * 1.08
             });
         }
 
         if (bestIndex === -1) return; // no note
         // grading
         const ms = bestDiff;
+        // record error for HUD (signed)
+        this.lastErrorMs = (this.activeNotes[bestIndex].targetTime - now);
+        this._errorSetAt = performance.now();
         let grade = null; let points = 0;
         if (ms <= this.hitWindows.perfect) { grade = 'MARVELOUS'; points = 300; }
         else if (ms <= this.hitWindows.great) { grade = 'AWESOME'; points = 150; }
@@ -535,6 +693,8 @@ export class Gameplay {
         // remove note and show feedback
         a.sprite.destroy();
         if (a.ring) a.ring.destroy();
+        if (a.ringGlow) a.ringGlow.destroy();
+        if (a.arc) a.arc.destroy();
         this.activeNotes.splice(bestIndex, 1);
 
         if (grade !== 'MISS') {
@@ -558,6 +718,37 @@ export class Gameplay {
 
     async _showHitFeedback(grade, zone) {
         const pos = this.zonePositions[zone];
+        // micro shake on high grades
+        if (grade === 'MARVELOUS' || grade === 'AWESOME') {
+            const origX = this.uiLayer.x, origY = this.uiLayer.y;
+            let t0 = performance.now();
+            const dur = 120;
+            const shake = () => {
+                const t = Math.min(1, (performance.now() - t0) / dur);
+                const amp = (1 - t) * 4;
+                this.uiLayer.x = origX + (Math.random() - 0.5) * amp;
+                this.uiLayer.y = origY + (Math.random() - 0.5) * amp;
+                if (t < 1) requestAnimationFrame(shake); else { this.uiLayer.x = origX; this.uiLayer.y = origY; }
+            };
+            requestAnimationFrame(shake);
+        }
+
+        // zone ripple
+        try {
+            const ripple = new PIXI.Graphics();
+            ripple.lineStyle(3, 0xffffff, 0.35);
+            ripple.drawCircle(0, 0, 24);
+            ripple.x = pos.x; ripple.y = pos.y;
+            this.uiLayer.addChild(ripple);
+            const start = performance.now(); const dur = 260;
+            const anim = () => {
+                const t = Math.min(1, (performance.now() - start) / dur);
+                ripple.scale.set(1 + 1.4 * t);
+                ripple.alpha = 0.35 * (1 - t);
+                if (t < 1) requestAnimationFrame(anim); else { ripple.destroy(); }
+            };
+            requestAnimationFrame(anim);
+        } catch { }
 
         // Play judgment sound
         try {
@@ -607,7 +798,7 @@ export class Gameplay {
             // grade text pop and fade
             const s = 1 + Math.sin(t * Math.PI) * 0.5; // Pop effect
             txt.scale.set(s);
-            txt.alpha = 1 - t;
+            txt.alpha = (t < 0.5) ? 1 : 1 - ((t - 0.5) * 2);
             txt.y = pos.y - t * 40; // Move up
 
             // spark expand and fade
@@ -700,6 +891,69 @@ export class Gameplay {
             const angle = Math.random() * Math.PI * 2; const speed = 3 + Math.random() * 6;
             const vx = Math.cos(angle) * speed; const vy = Math.sin(angle) * speed;
             this.activeParticles.push({ sprite: sp, x: sp.x, y: sp.y, vx, vy, life: 900, maxLife: 900 });
+        }
+    }
+
+    _createHud() {
+
+        // progress bar (bottom)
+        this.progressBar = new PIXI.Graphics();
+        this.progressBar.y = this.app.renderer.height - 10;
+        this.uiLayer.addChild(this.progressBar);
+
+        // error bar (top-center)
+        this.errorBar = new PIXI.Graphics();
+        this.errorBar.y = 8;
+        this.uiLayer.addChild(this.errorBar);
+        this.lastErrorMs = null;
+    }
+
+    _updateHud(nowMs) {
+        // faint visualizer draw
+        try {
+            this.bgViz.clear();
+            const w = this.app.renderer.width;
+            const bars = 48; const barW = (w - 40) / bars;
+            for (let i = 0; i < bars; i++) {
+                const v = Math.sin((nowMs / 120) + i * 0.35) * 0.5 + 0.5; // simple osc since we don't have analyzer here
+                const h = 30 + v * 40;
+                this.bgViz.beginFill(0x6ee7b7, 1);
+                this.bgViz.drawRoundedRect(20 + i * barW, 0 - h, barW * 0.8, h, 3);
+                this.bgViz.endFill();
+            }
+        } catch { }
+
+        // progress bar based on audio or timeline
+        const w = this.app.renderer.width;
+        const hBar = 4;
+        const totalMs = (this.chart && this.chart.notes && this.chart.notes.length) ? (this.chart.notes[this.chart.notes.length - 1].time + 2000) : 0;
+        const currentMs = this._now();
+        const p = totalMs > 0 ? Math.max(0, Math.min(1, currentMs / totalMs)) : 0;
+        this.progressBar.clear();
+        this.progressBar.beginFill(0x0b1728, 0.6);
+        this.progressBar.drawRoundedRect(20, -hBar, w - 40, hBar, 2);
+        this.progressBar.endFill();
+        this.progressBar.beginFill(0x6ee7b7, 0.95);
+        this.progressBar.drawRoundedRect(20, -hBar, (w - 40) * p, hBar, 2);
+        this.progressBar.endFill();
+
+        // error bar shows last timing error blip for ~400ms
+        this.errorBar.clear();
+        const centerX = w / 2; const barW = 240; const barH = 3;
+        this.errorBar.beginFill(0x0b1728, 0.6);
+        this.errorBar.drawRoundedRect(centerX - barW / 2, 0, barW, barH, 2);
+        this.errorBar.endFill();
+        if (this.lastErrorMs != null) {
+            const maxMs = 200; // map +/-200ms to edges
+            const clamped = Math.max(-maxMs, Math.min(maxMs, this.lastErrorMs));
+            const x = centerX + (clamped / maxMs) * (barW / 2);
+            const col = Math.abs(clamped) <= this.hitWindows.perfect ? 0xfff1a8 : Math.abs(clamped) <= this.hitWindows.great ? 0xa8ffd6 : 0xff9ea8;
+            this.errorBar.beginFill(col, 1);
+            this.errorBar.drawCircle(x, barH / 2, 4);
+            this.errorBar.endFill();
+            // fade out after some time
+            if (!this._errorSetAt) this._errorSetAt = nowMs;
+            if (nowMs - this._errorSetAt > 400) { this.lastErrorMs = null; this._errorSetAt = null; }
         }
     }
 
@@ -906,5 +1160,24 @@ export class Gameplay {
                 } catch (e) { /* ignore */ }
             };
         });
+    }
+
+    _getZoneHex(index) {
+        // find the nth hex graphics based on creation order: after bg circle, the next 6 children were hexes
+        // Safer: search for Graphics that drew a hex at zone positions
+        try {
+            const pos = this.zonePositions[index];
+            if (!pos) return null;
+            // find a Graphics near the zone position that is not a glow
+            let closest = null; let best = 1e9;
+            for (const child of this.hexGroup.children) {
+                if (child && child.position && typeof child.x === 'number' && typeof child.y === 'number') {
+                    const dx = child.x - pos.x; const dy = child.y - pos.y;
+                    const d2 = dx * dx + dy * dy;
+                    if (d2 < best) { best = d2; closest = child; }
+                }
+            }
+            return closest;
+        } catch { return null; }
     }
 }

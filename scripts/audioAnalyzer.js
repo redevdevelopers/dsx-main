@@ -98,15 +98,18 @@ export class AudioAnalyzer {
     }
 
     stop() {
+        console.log('AudioAnalyzer.stop() called.');
         if (this._mediaElement) {
-            try { this._mediaElement.pause(); } catch (e) { }
+            console.log('Stopping media element.');
+            try { this._mediaElement.pause(); } catch (e) { console.error('Error pausing media element:', e); }
             return;
         }
         if (this.source) {
+            console.log('Stopping buffer source.');
             try {
                 this.source.stop();
             } catch (e) {
-                // ignore if already stopped
+                console.error('Error stopping buffer source:', e);
             }
             this.source.started = false;
         }

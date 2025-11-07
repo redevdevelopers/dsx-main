@@ -25,6 +25,8 @@ const state = {
         visualizerBeat: true,
         blurMainMenuBackground: true,
         volumeScrollEnabled: true,
+        noteSpeed: 50, // 0-100 slider, converted to noteApproachTime
+        noteApproachTime: 1150, // ms the time a note takes to travel from spawn to hit
     },
     inputMap: null,
 };
@@ -107,6 +109,16 @@ function loadConfig() {
         if (cfg.inverted !== undefined) state.settings.inverted = !!cfg.inverted;
         if (cfg.mappings) state.inputMap = cfg.mappings;
         if (cfg.transition) state.settings.transition = cfg.transition;
+        
+        // Note speed/approach time
+        if (cfg.noteSpeed !== undefined) {
+            state.settings.noteSpeed = Number(cfg.noteSpeed) || 50;
+            state.settings.noteApproachTime = 2000 - (state.settings.noteSpeed * 17);
+        } else if (cfg.noteApproachTime !== undefined) {
+            state.settings.noteApproachTime = Number(cfg.noteApproachTime) || 1500;
+            // Convert old ms setting to new 0-100 scale
+            state.settings.noteSpeed = Math.round((2000 - state.settings.noteApproachTime) / 17);
+        }
 
         // Advanced settings
         if (cfg.developer !== undefined) state.settings.developer = !!cfg.developer;
@@ -131,7 +143,9 @@ function saveConfig() {
             renderer: state.settings.renderer,
             visualizerBeat: state.settings.visualizerBeat,
             blurMainMenuBackground: state.settings.blurMainMenuBackground,
-            volumeScrollEnabled: state.settings.volumeScrollEnabled
+            volumeScrollEnabled: state.settings.volumeScrollEnabled,
+            noteSpeed: state.settings.noteSpeed,
+            noteApproachTime: state.settings.noteApproachTime
         };
         localStorage.setItem('dsx_config', JSON.stringify(cfg));
         // show transient saved toast
@@ -170,12 +184,12 @@ const menu = createMainMenu({
         state.settings.developer = !state.settings.developer;
         saveConfig();
         // Show toast with developer mode status
-        const message = state.settings.developer ? 'Developer Mode Enabled' : 'Developer Mode Disabled';
+        const message = state.settings.developer ? 'DSX Developer Mode Enabled' : 'DSX Developer Mode Disabled';
         const toast = document.createElement('div');
         toast.className = 'toast developer-toast';
-        toast.style.background = state.settings.developer ? 'rgba(110,231,183,0.15)' : 'rgba(255,255,255,0.1)';
+        toast.style.background = state.settings.developer ? 'rgba(123, 214, 178, 1)' : 'rgba(156, 155, 155, 1)';
         toast.innerHTML = `<div style="font-weight:700">${message}</div>
-                         <div style="font-size:12px;opacity:0.7;margin-top:2px">Build ${BUILD_VERSION}</div>`;
+                         <div style="font-size:12px;opacity:1.0;margin-top:2px">Build ${BUILD_VERSION}</div>`;
         document.body.appendChild(toast);
         requestAnimationFrame(() => toast.classList.add('show'));
         setTimeout(() => {
@@ -192,7 +206,7 @@ let gameplay = null;
 function openSongSelect() {
     // clear and render into songSelect screen
     screens.songSelect.innerHTML = '';
-    const selector = new SongSelect({ onSelect: (song, chart) => { startGame({ song, chart }); }, onClose: () => { showScreen('menu'); } });
+    const selector = new SongSelect({ onSelect: (song, chart, isAutoplay) => { startGame({ song, chart, isAutoplay }); }, onClose: () => { showScreen('menu'); } });
     screens.songSelect.appendChild(selector.getElement());
     showScreen('songSelect');
 }
@@ -217,8 +231,13 @@ function openSettings() {
         <div class="controls-row" style="margin-top:8px">
             <label><input type="checkbox" id="visualizer-blur-toggle"> Blur main menu background</label>
         </div>
+        <div class="controls-row" style="margin-top:8px;gap:12px;align-items:center">
+            <label style="min-width:160px">BG Blur: <input type="range" id="bg-blur" min="0" max="10" step="1"></label>
+            <label style="min-width:200px">BG Dim: <input type="range" id="bg-dim" min="0.3" max="1" step="0.05"></label>
+        </div>
         <div class="controls-row" style="margin-top:8px">
             <label>Latency (ms): <input type="number" id="latency-input" value="${state.settings.latency}" style="width:90px"></label>
+            <label style="display:flex; align-items:center; gap:8px;">Note Speed: <input type="range" id="note-speed-slider" min="0" max="100" step="1" value="${state.settings.noteSpeed}" style="width:120px"><span id="note-speed-value" style="width:30px;">${state.settings.noteSpeed}</span></label>
             <button class="button ghost" id="remap-btn">Remap Inputs</button>
             <button class="button ghost" id="calibrate-btn">Calibrate</button>
         </div>
@@ -279,6 +298,16 @@ function openSettings() {
     latencyInput.value = state.settings.latency;
     latencyInput.addEventListener('change', (e) => { state.settings.latency = Number(e.target.value) || 0; saveConfig(); });
 
+    const noteSpeedSlider = overlay.querySelector('#note-speed-slider');
+    const noteSpeedValue = overlay.querySelector('#note-speed-value');
+    noteSpeedSlider.addEventListener('input', (e) => {
+        const speed = Number(e.target.value);
+        state.settings.noteSpeed = speed;
+        state.settings.noteApproachTime = 2000 - (speed * 17);
+        noteSpeedValue.textContent = speed;
+        saveConfig();
+    });
+
     // Volume scroll control
     const volScrollToggle = overlay.querySelector('#volume-scroll-toggle');
     volScrollToggle.checked = state.settings.volumeScrollEnabled;
@@ -309,13 +338,41 @@ function openSettings() {
     // Visualizer blur control
     const vizBlurToggle = overlay.querySelector('#visualizer-blur-toggle');
     vizBlurToggle.checked = state.settings.blurMainMenuBackground;
-    vizBlurToggle.addEventListener('change', (e) => {
+    vizBlurToggle.addEventListener('change', async (e) => {
+        const { soundManager } = await import('./soundManager.js'); await soundManager.play('toggle');
         state.settings.blurMainMenuBackground = !!e.target.checked;
         try {
             if (window.__dsx && window.__dsx.menu && window.__dsx.menu.visualizer) {
                 window.__dsx.menu.visualizer.setBlurEnabled(state.settings.blurMainMenuBackground);
             }
         } catch (err) { /* ignore */ }
+        saveConfig();
+    });
+
+    // Background blur/dim sliders
+    const bgBlur = overlay.querySelector('#bg-blur');
+    const bgDim = overlay.querySelector('#bg-dim');
+    if (state.settings.backgroundBlur == null) state.settings.backgroundBlur = 6;
+    if (state.settings.backgroundDim == null) state.settings.backgroundDim = 0.6;
+    bgBlur.value = state.settings.backgroundBlur;
+    bgDim.value = state.settings.backgroundDim;
+    const applyMenuBG = () => {
+        try {
+            const el = document.querySelector('.media-background');
+            if (el) el.style.filter = `blur(${state.settings.backgroundBlur}px) brightness(${state.settings.backgroundDim})`;
+        } catch {}
+    };
+    applyMenuBG();
+    bgBlur.addEventListener('input', async (e) => {
+        const { soundManager } = await import('./soundManager.js'); await soundManager.play('toggle');
+        state.settings.backgroundBlur = Number(e.target.value) || 0;
+        applyMenuBG();
+        saveConfig();
+    });
+    bgDim.addEventListener('input', async (e) => {
+        const { soundManager } = await import('./soundManager.js'); await soundManager.play('toggle');
+        state.settings.backgroundDim = Number(e.target.value) || 0.6;
+        applyMenuBG();
         saveConfig();
     });
 
@@ -379,9 +436,9 @@ function openSettings() {
     }
     refreshMapping();
 
-    overlay.querySelector('#remap-btn').addEventListener('click', () => openRemapDialog());
-    overlay.querySelector('#calibrate-btn').addEventListener('click', () => openCalibrationDialog());
-    overlay.querySelector('#close-settings').addEventListener('click', () => showScreen('menu'));
+    overlay.querySelector('#remap-btn').addEventListener('click', async () => { const { soundManager } = await import('./soundManager.js'); await soundManager.play('button'); openRemapDialog(); });
+    overlay.querySelector('#calibrate-btn').addEventListener('click', async () => { const { soundManager } = await import('./soundManager.js'); await soundManager.play('button'); openCalibrationDialog(); });
+    overlay.querySelector('#close-settings').addEventListener('click', async () => { const { soundManager } = await import('./soundManager.js'); await soundManager.play('button'); showScreen('menu'); });
 
     async function openCalibrationDialog() {
         const dlg = document.createElement('div'); dlg.classList.add('panel');
@@ -590,11 +647,29 @@ function resetToMenu() {
     showScreen('menu');
 }
 
-async function startGame({ song = null, chart = null } = {}) {
+async function startGame({ song = null, chart = null, isAutoplay = false } = {}) {
     // Stop menu music if playing
     try {
-        if (window.__dsx && window.__dsx.menu && window.__dsx.menu.visualizer && window.__dsx.menu.visualizer.isPlaying) {
-            window.__dsx.menu.visualizer.togglePlayPause();
+        if (window.__dsx && window.__dsx.menu && window.__dsx.menu.visualizer && window.__dsx.menu.visualizer.audioAnalyzer) {
+            const audioAnalyzer = window.__dsx.menu.visualizer.audioAnalyzer;
+            if (audioAnalyzer._mediaElement) {
+                audioAnalyzer._mediaElement.pause();
+                // Also set isPlaying to false in visualizer
+                window.__dsx.menu.visualizer.isPlaying = false;
+                // Update play/pause icons
+                const playIcon = window.__dsx.menu.visualizer.controls.querySelector('.play-icon');
+                const pauseIcon = window.__dsx.menu.visualizer.controls.querySelector('.pause-icon');
+                if (playIcon) playIcon.style.display = 'inline';
+                if (pauseIcon) pauseIcon.style.display = 'none';
+            } else if (audioAnalyzer.source && audioAnalyzer.source.started) {
+                audioAnalyzer.stop();
+                window.__dsx.menu.visualizer.isPlaying = false;
+                // Update play/pause icons
+                const playIcon = window.__dsx.menu.visualizer.controls.querySelector('.play-icon');
+                const pauseIcon = window.__dsx.menu.visualizer.controls.querySelector('.pause-icon');
+                if (playIcon) playIcon.style.display = 'inline';
+                if (pauseIcon) pauseIcon.style.display = 'none';
+            }
         }
     } catch (err) { /* ignore */ }
 
@@ -614,6 +689,7 @@ async function startGame({ song = null, chart = null } = {}) {
         input,
         settings: {
             ...state.settings,
+            isAutoplay, // Pass autoplay setting
             renderer: {
                 ...state.settings.renderer,
                 // Only apply renderer settings in developer mode
@@ -630,3 +706,18 @@ async function startGame({ song = null, chart = null } = {}) {
 
 // expose for debug
 window.__dsx = { state, input };
+
+// custom cursor logic
+const cursor = document.getElementById('custom-cursor');
+if (cursor) {
+    window.addEventListener('mousemove', e => {
+        cursor.style.left = `${e.clientX}px`;
+        cursor.style.top = `${e.clientY}px`;
+    });
+    window.addEventListener('mousedown', () => {
+        cursor.classList.add('clicking');
+    });
+    window.addEventListener('mouseup', () => {
+        cursor.classList.remove('clicking');
+    });
+}

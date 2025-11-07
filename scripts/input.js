@@ -7,8 +7,9 @@ export class InputHandler {
         this.gamepadIndex = null;
         this.polling = false;
 
-        this.keyMap = Object.assign({}, (this.state.inputMap && this.state.inputMap.keys) || { 'w': 0, 'd': 1, 's': 3, 'a': 4 });
-        this.gpMap = Object.assign({}, (this.state.inputMap && this.state.inputMap.gp) || { '3': 0, '2': 1, '1': 3, '0': 4 });
+        this.keyMap = Object.assign({}, (this.state.inputMap && this.state.inputMap.keys) || { 'j': 2, 'y': 0, 't': 5, 'u': 1, 'h': 3, 'g': 4 });
+        this.keyMap = Object.assign({}, (this.state.inputMap && this.state.inputMap.keys) || { 'P': 2, 'W': 0, 'Q': 5, 'E': 1, 'O': 3, 'I': 4 });
+        this.gpMap = Object.assign({}, (this.state.inputMap && this.state.inputMap.gp) || { '4': 2, '3': 0, '5': 5, '2': 1, '1': 3, '0': 4 });
 
         this.pressedKeys = new Set();
         this.keyDownBuffer = new Set();

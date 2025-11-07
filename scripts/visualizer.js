@@ -65,10 +65,7 @@ export class Visualizer {
             <button class="control-btn" id="nextBtn">
                 <svg width="24" height="24" viewBox="0 0 24 24"><path d="M16 6h2v12h-2zm-4.5 6l-8.5 6V6z" fill="white"></path></svg>
             </button>
-            <div class="time-slider">
-                <input type="range" min="0" max="100" value="0" class="slider" id="timeSlider">
-                <div class="time-display">0:00 / 0:00</div>
-            </div>
+            <div class="time-display">0:00 / 0:00</div> <!-- Add this line -->
         `;
         this.container.appendChild(this.controls);
 
@@ -89,12 +86,10 @@ export class Visualizer {
         const playBtn = this.controls.querySelector('#playBtn');
         const prevBtn = this.controls.querySelector('#prevBtn');
         const nextBtn = this.controls.querySelector('#nextBtn');
-        const timeSlider = this.controls.querySelector('#timeSlider');
 
         playBtn.addEventListener('click', () => this.togglePlayPause());
         prevBtn.addEventListener('click', () => this.previousTrack());
         nextBtn.addEventListener('click', () => this.nextTrack());
-        timeSlider.addEventListener('input', (e) => this.seekTo(e.target.value));
 
         // Show controls on hover
         this.container.addEventListener('mousemove', () => {

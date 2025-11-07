@@ -1,0 +1,21 @@
+{
+  "name": "Redevon Music",
+  "short_name": "Redevon",
+  "description": "A new way to listen to music.",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#1a1a1d",
+  "theme_color": "#1a1a1d",
+  "icons": [
+    {
+      "src": "assets/bootloader/boot.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "assets/bootloader/boot.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

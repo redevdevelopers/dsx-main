@@ -1,12 +1,9 @@
 import { AudioManager } from './audioManager.js';
 
 export const sampleSongs = [
-    { id: 'sample1', title: 'Internet Yamero', artist: 'by Autobahn 83', file: 'songs/interfaceloading.mp3', chart: '/charts/enhanced_sample.json', difficulty: 'Easy', image: 'songs/Sewerslvt_Restlessness/bg.jpg' },
-    { id: 'sample2', title: 'Hysteria', artist: 'Muse', file: 'songs/sample.mp3', chart: '/charts/sample_chart.json', difficulty: 'Medium', image: 'https://i1.sndcdn.com/artworks-000053235823-43r90g-t500x500.jpg' },
-    { id: 'sample3', title: 'Knights of Cydonia', artist: 'Muse', file: 'songs/sample.mp3', chart: '/charts/sample_chart.json', difficulty: 'Hard', image: 'https://m.media-amazon.com/images/M/MV5BMDgxN2YxYzktMzBwZi00YjA4LWIzYjItYzAwOWM0MDUxZGUzXkEyXkFqcGdeQXVyNTQ4NTc5OTU@._V1_.jpg' },
-    { id: 'sample4', title: 'Internet Yamero', artist: 'by Autobahn 83', file: 'songs/interfaceloading.mp3', chart: '/charts/enhanced_sample.json', difficulty: 'Easy', image: 'songs/Sewerslvt_Restlessness/bg.jpg' },
-    { id: 'sample5', title: 'Hysteria', artist: 'Muse', file: 'songs/sample.mp3', chart: '/charts/sample_chart.json', difficulty: 'Medium', image: 'https://i1.sndcdn.com/artworks-000053235823-43r90g-t500x500.jpg' },
-    { id: 'sample6', title: 'Knights of Cydonia', artist: 'Muse', file: 'songs/sample.mp3', chart: '/charts/sample_chart.json', difficulty: 'Hard', image: 'https://m.media-amazon.com/images/M/MV5BMDgxN2YxYzktMzBwZi00YjA4LWIzYjItYzAwOWM0MDUxZGUzXkEyXkFqcGdeQXVyNTQ4NTc5OTU@._V1_.jpg' },
+    { id: 'sample1', title: 'Flame', artist: 'by maimai', file: "songs/flame.mp4", chart: 'charts/flames.json', difficulty: 'normal', image: 'songs/InternetYamero/bg.jpg' },
+    { id: 'sample2', title: 'Internet Yamero', artist: 'by Autobahn 96', file: 'songs/InternetYamero/Internet_Yamero.mp4', chart: 'charts/internet-yamero.json', difficulty: 'normal', image: 'songs/InternetYamero/yamero.jpg' },
+    { id: 'sample3', title: 'DreamSync TEST Chart', artist: 'by Kyrinn', file: 'assets/misc/song.mp3', chart: 'charts/enhanced_sample.json', difficulty: 'Unrated', image: 'assets/misc/Images/gamelogo2.png' },
 ];
 
 export class SongSelect {
@@ -28,26 +25,54 @@ export class SongSelect {
         sampleSongs.forEach(s => {
             const it = document.createElement('div');
             it.classList.add('song-item');
-            it.style.backgroundImage = `url(${s.image})`;
+            it.style.backgroundImage = `url(${s.image || 'assets/misc/Images/gamelogo2.png'})`;
             it.innerHTML = `<div class="song-info">
-        <div style="font-weight:600">${s.title}</div>
+        <div style="font-weight:700;font-size:16px">${s.title}</div>
         <div class="meta">${s.artist} • ${s.difficulty}</div>
       </div>
       <div>
         <button class="button" data-id="${s.id}">Play</button>
         <button class="button ghost" data-preview="${s.id}">Preview</button>
       </div>`;
-            it.querySelector('[data-id]').addEventListener('click', () => this._select(s));
-            it.querySelector('[data-preview]').addEventListener('click', () => this._preview(s));
+            const playBtn = it.querySelector('[data-id]');
+            const prevBtn = it.querySelector('[data-preview]');
+            // SFX + ripple
+            const bind = (el, sfx = 'dsx-confirm') => {
+                if (!el) return;
+                el.addEventListener('mouseenter', async () => { try { const { soundManager } = await import('./soundManager.js'); soundManager.play('nav'); } catch { } });
+                el.addEventListener('mousedown', async (e) => {
+                    try { const { soundManager } = await import('./soundManager.js'); soundManager.play(sfx); } catch { }
+                    const ripple = document.createElement('span');
+                    ripple.style.position = 'absolute';
+                    ripple.style.left = `${e.offsetX - 10}px`;
+                    ripple.style.top = `${e.offsetY - 10}px`;
+                    ripple.style.width = ripple.style.height = '20px';
+                    ripple.style.borderRadius = '50%';
+                    ripple.style.background = 'rgba(255,255,255,0.3)';
+                    ripple.style.transform = 'scale(1)';
+                    ripple.style.pointerEvents = 'none';
+                    ripple.style.transition = 'transform .4s ease, opacity .4s ease';
+                    el.style.position = 'relative';
+                    el.appendChild(ripple);
+                    requestAnimationFrame(() => { ripple.style.transform = 'scale(8)'; ripple.style.opacity = '0'; });
+                    setTimeout(() => ripple.remove(), 450);
+                });
+            };
+            bind(playBtn, 'dsx-nav-enter');
+            bind(prevBtn, 'button');
+
+            playBtn.addEventListener('click', () => this._select(s));
+            prevBtn.addEventListener('click', () => this._select(s, true));
             list.appendChild(it);
         });
 
-        this._el.querySelector('#close').addEventListener('click', () => { if (this.onClose) this.onClose(); this._el.remove(); });
+        this._el.querySelector('#close').addEventListener('click', async () => { try { const { soundManager } = await import('./soundManager.js'); soundManager.play('button'); } catch { } this._cleanupPreview(); if (this.onClose) this.onClose(); this._el.remove(); });
     }
 
-    _select(song) {
-        // load chart path and optional audio. Keep song.file null for now.
-        if (this.onSelect) this.onSelect(song, song.chart);
+    _select(song, isAutoplay = false) {
+        // ensure any preview is stopped
+        this._cleanupPreview();
+        if (this.onSelect) this.onSelect(song, song.chart, isAutoplay);
         this._el.remove();
     }
 
@@ -58,12 +83,26 @@ export class SongSelect {
                 import('./audioManager.js'),
                 import('./soundManager.js')
             ]);
-            const am = new AudioManager({ audioContext: (soundManager && soundManager.context) || null, outputNode: (soundManager && soundManager.musicGain) || null });
-            await am.load(song.file);
-            await am.play();
+            // pause menu visualizer music if playing
+            try { if (window.__dsx && window.__dsx.menu && window.__dsx.menu.visualizer && window.__dsx.menu.visualizer.isPlaying) window.__dsx.menu.visualizer.togglePlayPause(); } catch { }
+            this._previewManager = new AudioManager({ audioContext: (soundManager && soundManager.context) || null, outputNode: (soundManager && soundManager.musicGain) || null });
+            await this._previewManager.load(song.file);
+            await this._previewManager.play();
             // stop after 12s preview and cleanup
-            setTimeout(() => { try { am.pause(); am.setCurrentTime(0); } catch (e) { /* ignore */ } }, 12000);
+            clearTimeout(this._previewTimeout);
+            this._previewTimeout = setTimeout(() => { this._cleanupPreview(); }, 12000);
         } catch (e) { console.warn('Preview failed', e); alert('Preview failed to play. Make sure the audio file exists in /songs.'); }
+    }
+
+    _cleanupPreview() {
+        try {
+            clearTimeout(this._previewTimeout);
+            if (this._previewManager) {
+                this._previewManager.pause();
+                this._previewManager.setCurrentTime(0);
+                this._previewManager = null;
+            }
+        } catch { }
     }
 
     getElement() { return this._el; }

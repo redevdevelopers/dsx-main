@@ -4,7 +4,7 @@ export class ScoreSystem {
         this.combo = 0;
         this.maxCombo = 0;
         this.hits = 0;
-        this.grades = { perfect: 0, great: 0, good: 0, miss: 0 };
+        this.grades = { Perfect: 0, Great: 0, Good: 0, Miss: 0 };
     }
 
     addHit(points) {
@@ -32,10 +32,10 @@ export class ScoreSystem {
 
         // Weight perfect hits more heavily for SSS+ potential
         const weights = {
-            perfect: 1,
-            great: 0.8,
-            good: 0.5,
-            miss: 0
+            Perfect: 1,
+            Great: 0.8,
+            Good: 0.5,
+            Miss: 0
         };
 
         let weighted = 0;

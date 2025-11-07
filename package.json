@@ -1,0 +1,22 @@
+{
+  "name": "redevos-blueberry",
+  "version": "0.0.1",
+  "main": "main.js",
+  "scripts": {
+    "build": "npx electron-packager . DSX-ETERNALFORCE --platform=win32 --arch=x64 --overwrite"
+  },
+  "keywords": [],
+  "author": "Kyrilla@Redevon Community",
+  "license": "ISC",
+  "description": "DreamSyncX - EternalForce",
+  "devDependencies": {
+    "electron": "^32.1.2",
+    "electron-builder": "^25.0.5",
+    "electron-packager": "^17.1.2"
+  },
+  "dependencies": {
+    "animejs": "^3.2.2",
+    "uikit": "^3.21.13",
+    "@pixi/devtools": "^2.0.1"
+  }
+}

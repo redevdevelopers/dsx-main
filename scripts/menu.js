@@ -34,7 +34,7 @@ export function createMainMenu(handlers = {}) {
             <button class="button primary" id="start">Start</button>
             <button class="button ghost" id="settings">Settings</button>
         </div>
-        <div class="build-info">DSX_BUILD_V1.10-A | PLATFORM Win_x86_64_26100.6899 24H2 (C) Redevon Studios 2021-2025</div>
+        <div class="build-info">DSX_BUILD_V1.12-D | (C) Redevon Studios 2021-2025</div>
     `;
 
     // Create visualizer instance AFTER we set innerHTML so its DOM isn't overwritten
@@ -69,6 +69,7 @@ export function createMainMenu(handlers = {}) {
                     hint.style.color = 'white';
                     hint.style.borderRadius = '5px';
                     hint.style.cursor = 'pointer';
+                    hint.textContent = 'Click to enable audio';
                     hint.addEventListener('click', () => {
                         soundManager.context.resume().then(() => {
                             hint.remove();
@@ -81,6 +82,36 @@ export function createMainMenu(handlers = {}) {
             console.warn('Failed to attach audio context to visualizer', e);
         }
     }).catch(() => { });
+    // Playlist logic
+    const playlist = sampleSongs.map(song => ({
+        title: song.title,
+        audioUrl: song.file,
+        backgroundUrl: song.image || song.bg || null,
+        duration: song.duration || 0
+    }));
+    let currentTrackIndex = 0;
+
+    function playTrack(index) {
+        currentTrackIndex = index;
+        const track = playlist[currentTrackIndex];
+        visualizer.loadTrack(track, true);
+    }
+
+    function nextTrack() {
+        playTrack((currentTrackIndex + 1) % playlist.length);
+    }
+
+    function previousTrack() {
+        playTrack((currentTrackIndex - 1 + playlist.length) % playlist.length);
+    }
+
+    visualizer.onNext = nextTrack;
+    visualizer.onPrevious = previousTrack;
+    visualizer.onSeek = (percentage) => {
+        if (visualizer.audioAnalyzer && visualizer.audioAnalyzer.audioElement) {
+            visualizer.audioAnalyzer.audioElement.currentTime = percentage * visualizer.currentTrack.duration / 100;
+        }
+    };
 
     // After audio context attached, load a default track into the visualizer (first sample) and attempt autoplay.
     // Autoplay may be blocked by browser policy; that's acceptable — user can press play.
@@ -117,14 +148,45 @@ export function createMainMenu(handlers = {}) {
         }
     });
 
-    root.querySelector('#start').addEventListener('click', async () => {
+    // helper to attach hover/click SFX and ripple
+    function bindButton(el, clickSfx = 'dsx-confirm', hoverSfx = 'DSX_NAV') {
+        if (!el) return;
+        el.addEventListener('mouseenter', () => { try { soundManager.play('nav'); } catch {} });
+        el.addEventListener('mousedown', (e) => {
+            try { soundManager.play(clickSfx); } catch {}
+            // ripple
+            const ripple = document.createElement('span');
+            ripple.style.position = 'absolute';
+            ripple.style.left = `${e.offsetX - 10}px`;
+            ripple.style.top = `${e.offsetY - 10}px`;
+            ripple.style.width = ripple.style.height = '20px';
+            ripple.style.borderRadius = '50%';
+            ripple.style.background = 'rgba(255,255,255,0.3)';
+            ripple.style.transform = 'scale(1)';
+            ripple.style.pointerEvents = 'none';
+            ripple.style.transition = 'transform .4s ease, opacity .4s ease';
+            el.style.position = 'relative';
+            el.appendChild(ripple);
+            requestAnimationFrame(() => { ripple.style.transform = 'scale(8)'; ripple.style.opacity = '0'; });
+            setTimeout(() => ripple.remove(), 450);
+        });
+    }
+
+    const startBtn = root.querySelector('#start');
+    const settingsBtn = root.querySelector('#settings');
+    bindButton(startBtn, 'dsx-confirm');
+    bindButton(settingsBtn, 'button');
+
+    startBtn.addEventListener('click', async () => {
         await soundManager.play('start');
         if (handlers.onSongSelect) handlers.onSongSelect();
     });
-    root.querySelector('#settings').addEventListener('click', async () => {
+    settingsBtn.addEventListener('click', async () => {
         await soundManager.play('button');
         if (handlers.onSettings) handlers.onSettings();
     });
 
     return root;
 }
+
+// Copyright Redevon Studios 2021-2025 (C) Open Source License. This file is part of DSX.
