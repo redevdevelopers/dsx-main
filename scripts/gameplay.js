@@ -67,7 +67,7 @@ export class Gameplay {
         this.activeNotes = [];
         this.approachTime = this.settings.noteApproachTime || 1500; // ms the time a note takes to travel from spawn to hit
         this.latencyOffset = (this.settings.latency || 0); // ms
-        this.hitWindows = { perfect: 50, great: 100, good: 200 };
+        this.hitWindows = { perfect: 90, great: 100, good: 200 };
 
         this.pointer = { x: 0.5, y: 0.5 };
         this.app.view.addEventListener('pointermove', (e) => {
